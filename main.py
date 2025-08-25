@@ -2,12 +2,13 @@ import pyautogui
 import time
 import json
 import random
-from pynput import mouse
+from pynput import mouse, keyboard
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
 click_sequence = []
 recording_in_progress = False
+replay_stopped = False  # New flag
 
 # GUI Setup
 root = tk.Tk()
@@ -37,6 +38,7 @@ tk.Button(button_frame, text="Record Click Sequence", width=30, command=lambda: 
 tk.Button(button_frame, text="Save Sequence to File", width=30, command=lambda: save_sequence()).pack(pady=5)
 tk.Button(button_frame, text="Load Sequence from File", width=30, command=lambda: load_sequence()).pack(pady=5)
 tk.Button(button_frame, text="Replay Sequence", width=30, command=lambda: replay_sequence(repeat_count_var.get())).pack(pady=5)
+tk.Button(button_frame, text="Stop Replay (F12)", width=30, command=lambda: stop_replay()).pack(pady=5)
 tk.Button(button_frame, text="Exit", width=30, command=root.quit).pack(pady=5)
 
 status_title = tk.Label(status_frame, text="Replay Status", font=("Arial", 12, "bold"))
@@ -45,7 +47,7 @@ step_label = tk.Label(status_frame, text="Step: -", font=("Arial", 10))
 step_label.pack()
 countdown_label = tk.Label(status_frame, text="Next click in: -", font=("Consolas", 10))
 countdown_label.pack()
-total_time_label = tk.Label(status_frame, text="Total elapsed: 0m 0.0s", font=("Consolas", 10))
+total_time_label = tk.Label(status_frame, text="Total elapsed: 0.0s", font=("Consolas", 10))
 total_time_label.pack()
 
 recorded_label = tk.Label(status_frame, text="Recorded Clicks", font=("Arial", 10, "bold"))
@@ -138,25 +140,42 @@ def load_sequence():
         entry = f"{i + 1}:  x={step['x']}  y={step['y']}  delay={step['delay']:.2f}s"
         recorded_listbox.insert(tk.END, entry)
 
+def stop_replay():
+    global replay_stopped
+    replay_stopped = True
+
 def replay_sequence(repeat):
+    global replay_stopped
     if not click_sequence:
         return
+    replay_stopped = False
     total_steps = len(click_sequence) * repeat
     step_counter = 1
     total_elapsed_start = time.time()
 
     for i in range(repeat):
         for step in click_sequence:
+            if replay_stopped:
+                step_label.config(text="Step: -")
+                countdown_label.config(text="Next click in: -")
+                total_time_label.config(text="Total elapsed: 0.0s")
+                return
+
             delay = step["delay"] + random.uniform(0.5, 1.0)
             elapsed = 0.0
             while elapsed < delay:
+                if replay_stopped:
+                    step_label.config(text="Step: -")
+                    countdown_label.config(text="Next click in: -")
+                    total_time_label.config(text="Total elapsed: 0.0s")
+                    return
                 remaining = delay - elapsed
                 total_elapsed = time.time() - total_elapsed_start
-                minutes = int(total_elapsed // 60)
-                seconds = total_elapsed % 60
+                mins = int(total_elapsed) // 60
+                secs = int(total_elapsed) % 60
                 step_label.config(text=f"Step: {step_counter} of {total_steps} (Loop {i+1}/{repeat})")
                 countdown_label.config(text=f"Next click in: {remaining:.1f}s")
-                total_time_label.config(text=f"Total elapsed: {minutes}m {seconds:.1f}s")
+                total_time_label.config(text=f"Total elapsed: {mins}:{secs:02d} min")
                 root.update_idletasks()
                 time.sleep(0.1)
                 elapsed += 0.1
@@ -172,6 +191,14 @@ def replay_sequence(repeat):
 
     step_label.config(text="Step: -")
     countdown_label.config(text="Next click in: -")
-    total_time_label.config(text="Total elapsed: 0m 0.0s")
+    total_time_label.config(text="Total elapsed: 0.0s")
+
+# --- Keyboard Listener ---
+def on_key_press(key):
+    if key == keyboard.Key.f12:
+        stop_replay()
+
+listener = keyboard.Listener(on_press=on_key_press)
+listener.start()
 
 root.mainloop()
