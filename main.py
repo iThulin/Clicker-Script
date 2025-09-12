@@ -28,8 +28,10 @@ status_frame.pack(side=tk.RIGHT, padx=10)
 # --- UI Variables ---
 click_count_var = tk.IntVar(value=5)
 repeat_count_var = tk.IntVar(value=1)
-min_delay_var = tk.DoubleVar(value=0.5)
-max_delay_var = tk.DoubleVar(value=1.0)
+min_delay_var = tk.DoubleVar(value=0.7)
+max_delay_var = tk.DoubleVar(value=1.3)
+min_loop_delay_var = tk.DoubleVar(value=1.0)
+max_loop_delay_var = tk.DoubleVar(value=2.0)
 infinite_recording_var = tk.BooleanVar(value=False)
 
 # --- Button Panel ---
@@ -48,6 +50,14 @@ tk.Label(delay_frame, text="Delay (Min / Max):").pack(side=tk.LEFT)
 tk.Entry(delay_frame, textvariable=min_delay_var, width=5).pack(side=tk.LEFT, padx=2)
 tk.Label(delay_frame, text="/").pack(side=tk.LEFT)
 tk.Entry(delay_frame, textvariable=max_delay_var, width=5).pack(side=tk.LEFT, padx=2)
+
+loop_delay_frame = tk.Frame(button_frame)
+loop_delay_frame.pack(pady=(0, 10))
+
+tk.Label(loop_delay_frame, text="Loop Delay (Min / Max):").pack(side=tk.LEFT)
+tk.Entry(loop_delay_frame, textvariable=min_loop_delay_var, width=5).pack(side=tk.LEFT, padx=2)
+tk.Label(loop_delay_frame, text="/").pack(side=tk.LEFT)
+tk.Entry(loop_delay_frame, textvariable=max_loop_delay_var, width=5).pack(side=tk.LEFT, padx=2)
 
 tk.Button(button_frame, text="Record Click Sequence", width=30, command=lambda: record_sequence(click_count_var.get())).pack(pady=5)
 tk.Button(button_frame, text="Save Sequence to File", width=30, command=lambda: save_sequence()).pack(pady=5)
@@ -113,6 +123,8 @@ def record_sequence(num_clicks):
     recorded_listbox.delete(0, tk.END)
 
     i = 0
+    last_click_time = time.time()
+
     while (not recording_stopped) and (infinite_recording_var.get() or i < num_clicks):
         step_label.config(text=f"Recording Step: {i+1}/{'∞' if infinite_recording_var.get() else num_clicks}")
         countdown_label.config(text="Waiting for click...")
@@ -122,7 +134,10 @@ def record_sequence(num_clicks):
         if recording_stopped:
             break
 
-        delay = random.uniform(min_delay_var.get(), max_delay_var.get())
+        now = time.time()
+        delay = now - last_click_time
+        last_click_time = now
+
         click_sequence.append({"x": pos[0], "y": pos[1], "delay": delay})
         entry = f"{i + 1}:  x={pos[0]}  y={pos[1]}  delay={delay:.2f}s"
         recorded_listbox.insert(tk.END, entry)
@@ -216,6 +231,13 @@ def replay_sequence(repeat):
             pyautogui.moveTo(x, y)
             pyautogui.click()
             step_counter += 1
+            
+        # Delay between loops
+        if not replay_stopped and i < repeat - 1:
+            loop_delay = random.uniform(min_loop_delay_var.get(), max_loop_delay_var.get())
+            countdown_label.config(text=f"Next loop in: {loop_delay:.2f}s")
+            root.update_idletasks()
+            time.sleep(loop_delay)
 
     reset_labels()
 
